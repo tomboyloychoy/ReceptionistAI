@@ -1,4 +1,5 @@
 import os
+import time
 from io import StringIO
 
 from streamlit_js_eval import streamlit_js_eval
@@ -21,26 +22,26 @@ logger = logging.getLogger()
 openai.api_key = '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'
 
 # connect to TiDB
-tidb_connection_url = URL(
-    "mysql+pymysql",
-    username='3gWTC3urj9AQht2.root',
-    password='Eh0IB03XaZqSJZpF',
-    host='gateway01.us-east-1.prod.aws.tidbcloud.com',
-    port=4000,
-    database="receptionistai",
-    query={"ssl_verify_cert": True, "ssl_verify_identity": True},
-)
-tidbvec = TiDBVectorStore(
-    connection_string=tidb_connection_url,
-    table_name="data",
-    distance_strategy="cosine",
-    vector_dimension=1536,  # Length of the vectors returned by the model
-    drop_existing_table=False,
-)
-tidb_vec_index = VectorStoreIndex.from_vector_store(tidbvec)
-storage_context = StorageContext.from_defaults(vector_store=tidbvec)
-query_engine = tidb_vec_index.as_query_engine(streaming=True)
-logger.info("Connect to TiDB Vector Store successfully")
+# tidb_connection_url = URL(
+#     "mysql+pymysql",
+#     username='3gWTC3urj9AQht2.root',
+#     password='OZsJsxhTXd6duGJG',
+#     host='gateway01.us-east-1.prod.aws.tidbcloud.com',
+#     port=4000,
+#     database="receptionistai",
+#     query={"ssl_verify_cert": True, "ssl_verify_identity": True},
+# )
+# tidbvec = TiDBVectorStore(
+#     connection_string=tidb_connection_url,
+#     table_name="data",
+#     distance_strategy="cosine",
+#     vector_dimension=1536,  # Length of the vectors returned by the model
+#     drop_existing_table=False,
+# )
+# tidb_vec_index = VectorStoreIndex.from_vector_store(tidbvec)
+# storage_context = StorageContext.from_defaults(vector_store=tidbvec)
+# query_engine = tidb_vec_index.as_query_engine(streaming=True)
+# logger.info("Connect to TiDB Vector Store successfully")
 
 # Chat interface
 def do_prepare_data():
@@ -110,187 +111,100 @@ def intro():
             st.session_state.messages.append(message)
 
 # Upload document
+def sign_in():
+    st.title("Simple Sign In")
 
-def mapping_demo():
+    # Initialize session state if not already done
+    if "signed_in" not in st.session_state:
+        st.session_state.signed_in = False
+        st.session_state.username = ""
 
+    # If not signed in, show the sign-in form
+    if not st.session_state.signed_in:
+        username = st.text_input("Username")
+        password = st.text_input("Password", type="password")
 
-    from urllib.error import URLError
-
-    st.markdown(f"# {list(page_names_to_funcs.keys())[2]}")
-    st.write(
-        """
-        This demo shows how to use
-[`st.pydeck_chart`](https://docs.streamlit.io/develop/api-reference/charts/st.pydeck_chart)
-to display geospatial data.
-"""
-    )
-    # List of user IDs with a placeholder as the first option
-    user_ids = ['-- Select a User ID --', 'User1', 'User2', 'User3', 'User4']
-
-    # Dropdown for user selection
-    selected_user = st.selectbox("Select your User ID", user_ids, index=0)
-
-    # Check if a valid user is selected (i.e., not the placeholder)
-    if selected_user != '-- Select a User ID --':
-        # Define the directory path where the file will be saved
-        directory_path = f"./data/{selected_user}"
-
-        # Create the directory if it doesn't exist
-        if not os.path.exists(directory_path):
-            os.makedirs(directory_path)
-
-        files = os.listdir(directory_path)
-
-        if files:
-            st.subheader(f"Files uploaded by {selected_user}:")
-            for file in files:
-                col1, col2 = st.columns([4, 1])
-
-                with col1:
-                    st.text(file)
-
-                with col2:
-                    remove_button = st.button(f"Remove {file}", key=file)
-
-                    if remove_button:
-                        # Remove the file from the directory
-                        file_path = os.path.join(directory_path, file)
-                        os.remove(file_path)
-
-        else:
-            st.info(f"No files found for {selected_user}.")
-
-        uploaded_file = st.file_uploader("Choose a file")
-
-        if uploaded_file is not None:
-            # Define the full path including the filename
-            save_path = os.path.join(directory_path, uploaded_file.name)
-
-            # Save the file to the local machine
-            with open(save_path, "wb") as file:
-                file.write(uploaded_file.getbuffer())
-
-            # Notify the user that the file has been saved
-            st.success(f"File saved to {save_path}")
+        if st.button("Sign In"):
+            if username == 'username1' and password == 'password':
+                st.session_state.signed_in = True
+                st.session_state.username = username
+                st.success(f"Welcome, {username}! You have successfully signed in!")
+                st.rerun()  # Re-run the app to hide the sign-in box
+            else:
+                st.error("Incorrect username or password. Please try again.")
     else:
-        st.info("Please select a User ID to upload a file.")
+        st.success(f"You are already signed in as {st.session_state.username}!")
 
-        # # To read file as bytes:
-        # bytes_data = uploaded_file.getvalue()
-        # st.write(bytes_data)
-        #
-        # # To convert to a string based IO:
-        # stringio = StringIO(uploaded_file.getvalue().decode("utf-8"))
-        # st.write(stringio)
-        #
-        # # To read file as string:
-        # string_data = stringio.read()
-        # st.write(string_data)
-        #
-        # # Can be used wherever a "file-like" object is accepted:
-        # dataframe = pd.read_csv(uploaded_file)
-        # st.write(dataframe)
+        selected_user = st.session_state.username
 
+        st.button('Refresh file')
 
-def plotting_demo():
-    import streamlit as st
-    import time
-    import numpy as np
+        if selected_user != "":
 
-    st.markdown(f'# {list(page_names_to_funcs.keys())[1]}')
-    st.write(
-        """
-        This demo illustrates a combination of plotting and animation with
-Streamlit. We're generating a bunch of random numbers in a loop for around
-5 seconds. Enjoy!
-"""
-    )
+            directory_path = f"./data/{selected_user}"
 
-    progress_bar = st.sidebar.progress(0)
-    status_text = st.sidebar.empty()
-    last_rows = np.random.randn(1, 1)
-    chart = st.line_chart(last_rows)
+            # Create the directory if it doesn't exist
+            if not os.path.exists(directory_path):
+                os.makedirs(directory_path)
 
-    for i in range(1, 101):
-        new_rows = last_rows[-1, :] + np.random.randn(5, 1).cumsum(axis=0)
-        status_text.text("%i%% Complete" % i)
-        chart.add_rows(new_rows)
-        progress_bar.progress(i)
-        last_rows = new_rows
-        time.sleep(0.05)
+            files = os.listdir(directory_path)
 
-    progress_bar.empty()
+            if files:
+                st.subheader(f"Files uploaded by {selected_user}:")
+                for file in files:
+                    col1, col2 = st.columns([4, 1])
 
-    # Streamlit widgets automatically run the script from top to bottom. Since
-    # this button is not connected to any other logic, it just causes a plain
-    # rerun.
-    st.button("Re-run")
+                    with col1:
+                        st.text(file)
 
+                    with col2:
+                        remove_button = st.button(f"Remove {file}", key=file)
 
-def data_frame_demo():
-    import streamlit as st
-    import pandas as pd
-    import altair as alt
+                        if remove_button:
+                            # Remove the file from the directory
+                            file_path = os.path.join(directory_path, file)
+                            os.remove(file_path)
+                            st.rerun()  # Re-run the app to hide the sign-in box
 
-    from urllib.error import URLError
+            else:
+                st.info(f"No files found for {selected_user}.")
 
-    st.markdown(f"# {list(page_names_to_funcs.keys())[3]}")
-    st.write(
-        """
-        This demo shows how to use `st.write` to visualize Pandas DataFrames.
-
-(Data courtesy of the [UN Data Explorer](http://data.un.org/Explorer.aspx).)
-"""
-    )
-
-    @st.cache_data
-    def get_UN_data():
-        AWS_BUCKET_URL = "http://streamlit-demo-data.s3-us-west-2.amazonaws.com"
-        df = pd.read_csv(AWS_BUCKET_URL + "/agri.csv.gz")
-        return df.set_index("Region")
-
-    try:
-        df = get_UN_data()
-        countries = st.multiselect(
-            "Choose countries", list(df.index), ["China", "United States of America"]
-        )
-        if not countries:
-            st.error("Please select at least one country.")
-        else:
-            data = df.loc[countries]
-            data /= 1000000.0
-            st.write("### Gross Agricultural Production ($B)", data.sort_index())
-
-            data = data.T.reset_index()
-            data = pd.melt(data, id_vars=["index"]).rename(
-                columns={"index": "year", "value": "Gross Agricultural Product ($B)"}
+            # Add a black space between the header and the username box
+            st.markdown(
+                """
+                <style>
+                .white-space {
+                    height: 200px; /* Adjust the height as needed */
+                    background-color: white;
+                    margin-bottom: 20px; /* Space below the black space */
+                }
+                </style>
+                <div class="white-space"></div>
+                """,
+                unsafe_allow_html=True
             )
-            chart = (
-                alt.Chart(data)
-                .mark_area(opacity=0.3)
-                .encode(
-                    x="year:T",
-                    y=alt.Y("Gross Agricultural Product ($B):Q", stack=None),
-                    color="Region:N",
-                )
-            )
-            st.altair_chart(chart, use_container_width=True)
-    except URLError as e:
-        st.error(
-            """
-            **This demo requires internet access.**
 
-            Connection error: %s
-        """
-            % e.reason
-        )
+
+            uploaded_file = st.file_uploader("Choose a file")
+
+            if uploaded_file is not None:
+                # Define the full path including the filename
+                save_path = os.path.join(directory_path, uploaded_file.name)
+
+                # Save the file to the local machine
+                with open(save_path, "wb") as file:
+                    file.write(uploaded_file.getbuffer())
+
+                # Notify the user that the file has been saved
+                alert = st.success(f"File saved to {save_path}", icon="✅")
+                time.sleep(2)
+                alert.empty()
+
 
 
 page_names_to_funcs = {
     "Welcome": intro,
-    "Plotting Demo": plotting_demo,
-    "Mapping Demo": mapping_demo,
-    "DataFrame Demo": data_frame_demo
+    "Business Sign-in": sign_in,
 }
 
 demo_name = st.sidebar.selectbox("Choose a demo", page_names_to_funcs.keys())
