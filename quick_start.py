@@ -26,12 +26,12 @@ tidb_connection_url = URL(
     password='Eh0IB03XaZqSJZpF',
     host='gateway01.us-east-1.prod.aws.tidbcloud.com',
     port=4000,
-    database="test",
+    database="receptionistai",
     query={"ssl_verify_cert": True, "ssl_verify_identity": True},
 )
 tidbvec = TiDBVectorStore(
     connection_string=tidb_connection_url,
-    table_name="llama_index_rag_test",
+    table_name="data",
     distance_strategy="cosine",
     vector_dimension=1536,  # Length of the vectors returned by the model
     drop_existing_table=False,
@@ -46,6 +46,10 @@ def do_prepare_data():
     logger.info("Preparing the data for the application")
     reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
     documents = reader.load_data()
+
+    # add metadata
+    for document in documents:
+        document.metadata = {"business_id": "CINYNAIL"}
     tidb_vec_index.from_documents(documents, storage_context=storage_context, show_progress=True)
     logger.info("Data preparation complete")
 
