@@ -34,7 +34,7 @@ tidbvec = TiDBVectorStore(
     table_name="llama_index_rag_test",
     distance_strategy="cosine",
     vector_dimension=1536,  # Length of the vectors returned by the model
-    drop_existing_table=True,
+    drop_existing_table=False,
 )
 tidb_vec_index = VectorStoreIndex.from_vector_store(tidbvec)
 storage_context = StorageContext.from_defaults(vector_store=tidbvec)
@@ -49,18 +49,21 @@ def do_prepare_data():
     tidb_vec_index.from_documents(documents, storage_context=storage_context, show_progress=True)
     logger.info("Data preparation complete")
 
-
-do_prepare_data()
-
 if "messages" not in st.session_state.keys():  # Initialize the chat messages history
     st.session_state.messages = [
         {
             "role": "assistant",
-            "content": "Ask me any question",
+            "content": "Hello there! How can I help you today?",
         }
     ]
 
+def get_system_message(filename):
+    with open('system_prompt/' + filename, 'r') as file:
+    # Read the entire content
+        content = file.read()
+    return content
 
+SYSTEM_MESSAGE = get_system_message("nail_salon_ciny_nail.txt")
 @st.cache_resource(show_spinner=False)
 def load_data():
     reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
@@ -68,7 +71,7 @@ def load_data():
     Settings.llm = OpenAI(
         model="gpt-4o",
         temperature=1.2,
-        system_prompt="""system message""",
+        system_prompt="You are a nail salon receptionist. When user ask about a service, generate a question about that service to get information from nail salon, and what higher service you can siggest to the customer plus why they should do it",
     )
     index = VectorStoreIndex.from_documents(docs)
     return index
@@ -80,6 +83,12 @@ if "chat_engine" not in st.session_state.keys():  # Initialize the chat engine
     st.session_state.chat_engine = tidb_vec_index.as_chat_engine(
         chat_mode="condense_plus_context", verbose=True, streaming=True
     )
+
+# Initialize messages if not already initialized
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "system", "content": SYSTEM_MESSAGE}
+    ]
 
 if prompt := st.chat_input(
         "question"
