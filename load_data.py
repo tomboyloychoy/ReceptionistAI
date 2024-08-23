@@ -44,7 +44,7 @@ def do_prepare_data():
 
     # add metadata
     for document in documents:
-        document.metadata = {"business_id": "CINYNAIL"}
+        document.metadata = {"business_id": "CINYNAIL", "business_name": "Ciny Nails and Spa"}
     tidb_vec_index.from_documents(documents, storage_context=storage_context, show_progress=True)
     logger.info("Data preparation complete")
 
