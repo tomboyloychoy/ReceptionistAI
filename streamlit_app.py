@@ -1,25 +1,13 @@
-import streamlit as st
-import openai
-from llama_index.llms.openai import OpenAI
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings
-
-import os
-import sys
-import json
 import logging
-import click
-import uvicorn
-import fastapi
-import asyncio
-from enum import Enum
-from sqlalchemy import URL
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import StreamingResponse, HTMLResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+import sys
+
+import openai
+import streamlit as st
+from llama_index.core import SimpleDirectoryReader, Settings
 from llama_index.core import VectorStoreIndex, StorageContext
-from llama_index.core.base.response.schema import StreamingResponse as llamaStreamingResponse
+from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.tidbvector import TiDBVectorStore
-from llama_index.readers.web import SimpleWebPageReader
+from sqlalchemy import URL
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
@@ -56,7 +44,7 @@ logger.info("TiDB Vector Store initialized successfully")
 
 def do_prepare_data():
     logger.info("Preparing the data for the application")
-    reader = SimpleDirectoryReader(input_dir="./data2", recursive=True)
+    reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
     documents = reader.load_data()
     tidb_vec_index.from_documents(documents, storage_context=storage_context, show_progress=True)
     logger.info("Data preparation complete")
@@ -75,7 +63,7 @@ if "messages" not in st.session_state.keys():  # Initialize the chat messages hi
 
 @st.cache_resource(show_spinner=False)
 def load_data():
-    reader = SimpleDirectoryReader(input_dir="./data2", recursive=True)
+    reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
     docs = reader.load_data()
     Settings.llm = OpenAI(
         model="gpt-4o",
