@@ -1,4 +1,4 @@
-** Pedicure - Feet service ** 
+Pedicure - Feet service
 1. Pedicure 
 
 Polish:
@@ -17,11 +17,11 @@ Description:
 
 Pamper your feet with our Pedicure service.
 
-*Soak and cleanse* to refresh tired feet.
-*Nail shaping and cuticle care* for a neat look.
-*Exfoliation and scrub* to smooth skin.
-*Massage with lotion* for relaxation.
-*Polish application* to complete the look.
+Soak and cleanse to refresh tired feet.
+Nail shaping and cuticle care for a neat look.
+Exfoliation and scrub to smooth skin.
+Massage with lotion for relaxation.
+Polish application to complete the look.
 Step out with soft, beautiful feet.
 
 

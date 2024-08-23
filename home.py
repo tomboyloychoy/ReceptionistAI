@@ -67,14 +67,36 @@ def get_connection(autocommit: bool = True) -> MySQLConnection:
         db_conf["ssl_ca"] = "isrgrootx1.pem"
     return mysql.connector.connect(**db_conf)
 
-# SYSTEM_MESSAGE = get_system_message("nail_salon_ciny_nail.txt")
-with get_connection(autocommit=True) as conn:
-    with conn.cursor() as cur:
-        cur.execute("select distinct chat_system_prompt from business where business_id = 'CINYNAIL';")
-        CHAT_SYSTEM_MESSAGE = cur.fetchone()[0]
-        cur.execute("select distinct search_system_prompt from business where business_id = 'CINYNAIL';")
-        SEARCH_SYSTEM_MESSAGE = cur.fetchone()[0]
-        cur.close()
+def run_mysql_query(query: str):
+    result = None
+    with get_connection(autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            result = cur.fetchone()[0]
+            cur.close()
+        conn.close()
+    return result
+
+def run_mysql_query_tolist(query: str):
+    result = None
+    with get_connection(autocommit=True) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query)
+            res = cur.fetchall()
+            print("res=", res)
+            result = [row[0] for row in res]
+            cur.close()
+        conn.close()
+    return result
+
+
+
+st.session_state.chat_system_message = 'You are an AI assitant that help user answer question' # default
+st.session_state.search_system_message  = 'system message' # default
+
+
+
+
 
 
 # Chat interface
@@ -84,7 +106,38 @@ def do_prepare_data():
     documents = reader.load_data()
     tidb_vec_index.from_documents(documents, storage_context=storage_context, show_progress=True)
     logger.info("Data preparation complete")
-def intro():
+
+
+BUSINESS_NAME_LIST = [] # to be displayed in selection list
+BUSINESS_NAME_LIST = run_mysql_query_tolist(query="SELECT DISTINCT BUSINESS_NAME FROM BUSINESS;")
+# Get the list of Business Code
+def select_business():
+    st.title("Welcome to Our Receptionist AI Chatbot Service")
+    st.write("Please select a business you would like to chat with:")
+
+    selected_business = st.selectbox("Choose a business:", BUSINESS_NAME_LIST)
+
+
+    if st.button("Proceed to Chat"):
+        if selected_business:
+            # Save the selected business to session state
+            st.session_state.selected_business = selected_business
+
+            # find selected business code
+            st.session_state.selected_business_id = run_mysql_query(f"SELECT DISTINCT BUSINESS_ID FROM BUSINESS WHERE BUSINESS_NAME = '{st.session_state.selected_business}';")
+            st.session_state.chat_system_message = run_mysql_query(f"select distinct chat_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
+            st.session_state.search_system_message = run_mysql_query(f"select distinct search_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
+            
+            st.rerun()
+        else:
+            st.error("Please select a business before proceeding.")
+    
+def chat():
+
+    st.title(f"Welcome to {st.session_state.selected_business}")
+
+        # Initialize messages if not already initialized
+
     if "messages" not in st.session_state.keys():  # Initialize the chat messages history
         st.session_state.messages = [
             {
@@ -94,17 +147,18 @@ def intro():
         ]
 
 
-    @st.cache_resource(show_spinner=False)
-    def load_data():
-        reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
-        docs = reader.load_data()
-        Settings.llm = OpenAI(
-            model="gpt-4o",
-            temperature=1.2,
-            system_prompt=SEARCH_SYSTEM_MESSAGE,
-        )
-        index = VectorStoreIndex.from_documents(docs)
-        return index
+    # @st.cache_resource(show_spinner=False)
+    # def load_data():
+    #     reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
+    #     docs = reader.load_data()
+    #     Settings.llm = OpenAI(
+    #         model="gpt-4o",
+    #         temperature=1.2,
+    #         system_prompt=st.session_state.search_system_message
+    #         ,
+    #     )
+    #     index = VectorStoreIndex.from_documents(docs)
+    #     return index
 
 
     #index = load_data()
@@ -114,14 +168,13 @@ def intro():
             chat_mode="condense_plus_context", verbose=True, streaming=True
         )
 
-    # Initialize messages if not already initialized
     if "messages" not in st.session_state:
         st.session_state.messages = [
-            {"role": "system", "content": CHAT_SYSTEM_MESSAGE}
+            {"role": "system", "content": st.session_state.chat_system_message}
         ]
 
     if prompt := st.chat_input(
-            "question"
+            "Typing a question..."
     ):  # Prompt for user input and save to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
 
@@ -139,7 +192,7 @@ def intro():
             st.session_state.messages.append(message)
 
 # Upload document
-def sign_in():
+def track_document():
     st.title("Document tracker")
 
     # Initialize session state if not already done
@@ -230,11 +283,13 @@ def sign_in():
                 alert.empty()
 
 
-
 page_names_to_funcs = {
-    "Welcome": intro,
-    "Business Sign-in": sign_in,
+    "Chatbot": chat,
+    "Document Tracker": track_document,
+    "Select Business": select_business
 }
-
-demo_name = st.sidebar.selectbox("Select a page", page_names_to_funcs.keys())
-page_names_to_funcs[demo_name]()
+if "selected_business" in st.session_state:
+    demo_name = st.sidebar.selectbox("Select a page", page_names_to_funcs.keys())
+    page_names_to_funcs[demo_name]()
+else:
+    select_business()
