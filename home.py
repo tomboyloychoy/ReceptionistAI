@@ -12,6 +12,11 @@ from llama_index.core import VectorStoreIndex, StorageContext
 from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.tidbvector import TiDBVectorStore
 from sqlalchemy import URL
+import mysql.connector
+from mysql.connector import MySQLConnection
+from mysql.connector.cursor import MySQLCursor
+
+from config import Config
 
 # logging
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -20,11 +25,11 @@ logger = logging.getLogger()
 # openai 
 openai.api_key = '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'
 
-# connect to TiDB
+# connect to TiDB Vector Store
 tidb_connection_url = URL(
     "mysql+pymysql",
     username='3gWTC3urj9AQht2.root',
-    password='Eh0IB03XaZqSJZpF',
+    password='02F3s7AwdQIh9dmg',
     host='gateway01.us-east-1.prod.aws.tidbcloud.com',
     port=4000,
     database="receptionistai",
@@ -42,6 +47,35 @@ storage_context = StorageContext.from_defaults(vector_store=tidbvec)
 query_engine = tidb_vec_index.as_query_engine(streaming=True)
 logger.info("Connect to TiDB Vector Store successfully")
 
+# Connect to TiDB MySQL
+def get_connection(autocommit: bool = True) -> MySQLConnection:
+    db_conf = {
+        "host": 'gateway01.us-east-1.prod.aws.tidbcloud.com',
+        "port": 4000,
+        "user": '3gWTC3urj9AQht2.root',
+        "password": '02F3s7AwdQIh9dmg',
+        "database": "receptionistai",
+        "autocommit": autocommit,
+        "use_pure": True,
+    }
+
+    if "isrgrootx1.pem":
+        print("get ca")
+        db_conf["ssl_verify_cert"] = True
+        db_conf["ssl_verify_identity"] = True
+        db_conf["ssl_ca"] = "isrgrootx1.pem"
+    return mysql.connector.connect(**db_conf)
+
+# SYSTEM_MESSAGE = get_system_message("nail_salon_ciny_nail.txt")
+with get_connection(autocommit=True) as conn:
+    with conn.cursor() as cur:
+        cur.execute("select distinct chat_system_prompt from business where business_id = 'CINYNAIL';")
+        CHAT_SYSTEM_MESSAGE = cur.fetchone()[0]
+        cur.execute("select distinct search_system_prompt from business where business_id = 'CINYNAIL';")
+        SEARCH_SYSTEM_MESSAGE = cur.fetchone()[0]
+        cur.close()
+
+
 # Chat interface
 def do_prepare_data():
     logger.info("Preparing the data for the application")
@@ -58,13 +92,7 @@ def intro():
             }
         ]
 
-    def get_system_message(filename):
-        with open('system_prompt/' + filename, 'r') as file:
-        # Read the entire content
-            content = file.read()
-        return content
 
-    SYSTEM_MESSAGE = get_system_message("nail_salon_ciny_nail.txt")
     @st.cache_resource(show_spinner=False)
     def load_data():
         reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
@@ -72,7 +100,7 @@ def intro():
         Settings.llm = OpenAI(
             model="gpt-4o",
             temperature=1.2,
-            system_prompt="You are a nail salon receptionist. When user ask about a service, generate a question about that service to get information from nail salon, and what higher service you can siggest to the customer plus why they should do it",
+            system_prompt=SEARCH_SYSTEM_MESSAGE,
         )
         index = VectorStoreIndex.from_documents(docs)
         return index
@@ -88,7 +116,7 @@ def intro():
     # Initialize messages if not already initialized
     if "messages" not in st.session_state:
         st.session_state.messages = [
-            {"role": "system", "content": SYSTEM_MESSAGE}
+            {"role": "system", "content": CHAT_SYSTEM_MESSAGE}
         ]
 
     if prompt := st.chat_input(
