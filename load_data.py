@@ -7,6 +7,7 @@ from llama_index.core import VectorStoreIndex, StorageContext, Document
 from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.tidbvector import TiDBVectorStore
 from sqlalchemy import URL
+import os
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 logger = logging.getLogger()
@@ -54,13 +55,12 @@ def do_prepare_data_from_file(file_path):
     logger.info("Preparing the data for the application")
     with open(file_path, 'r') as file:
         content = file.read()
-        print(content)
+        #print(content)
     document = Document(text=content)
- 
-
+    file_name = os.path.basename(file_path)
     # add metadata
 
-    document.metadata = {"business_id": "CINYNAIL", "business_name": "Ciny Nails and Spa", "file_name": document.id_}
+    document.metadata = {"business_id": "CINYNAIL", "business_name": "Ciny Nails and Spa", "file_name": file_path}
     tidb_vec_index.from_documents([document],storage_context=storage_context, show_progress=True)
     logger.info("Data preparation complete")
 

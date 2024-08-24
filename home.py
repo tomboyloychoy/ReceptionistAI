@@ -106,6 +106,10 @@ def delete_index_by_name(file_name):
     run_mysql_query_tolist(query)
 
 
+st.session_state.chat_system_message = 'You are an AI assitant that help user answer question'  # default
+st.session_state.search_system_message = 'system message'  # default
+
+
 
 
 BUSINESS_NAME_LIST = [] # to be displayed in selection list
@@ -115,19 +119,37 @@ def select_business():
     st.title("Welcome to Our Receptionist AI Chatbot Service")
     st.write("Please select a business you would like to chat with:")
 
+    # Check if "selected_business" exists in the session state
+    if "selected_business" in st.session_state:
+        del st.session_state["selected_business"]
+        st.rerun()
+
     selected_business = st.selectbox("Choose a business:", BUSINESS_NAME_LIST)
 
 
     if st.button("Proceed to Chat"):
         if selected_business:
-            # Save the selected business to session state
-            st.session_state.selected_business = selected_business
 
-            # find selected business code
-            st.session_state.selected_business_id = run_mysql_query(f"SELECT DISTINCT BUSINESS_ID FROM BUSINESS WHERE BUSINESS_NAME = '{st.session_state.selected_business}';")
-            st.session_state.chat_system_message = run_mysql_query(f"select distinct chat_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
-            st.session_state.search_system_message = run_mysql_query(f"select distinct search_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
-            
+            min_loading_time = 2  # Minimum time to show loading message in seconds
+            start_time = time.time()
+            with st.spinner('Loading, please wait...'):
+                st.session_state.selected_business = None
+                # Save the selected business to session state
+                st.session_state.selected_business = selected_business
+
+                # find selected business code
+                st.session_state.selected_business_id = run_mysql_query(
+                    f"SELECT DISTINCT BUSINESS_ID FROM BUSINESS WHERE BUSINESS_NAME = '{st.session_state.selected_business}';")
+                st.session_state.chat_system_message = run_mysql_query(
+                    f"select distinct chat_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
+                st.session_state.search_system_message = run_mysql_query(
+                    f"select distinct search_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
+
+                # Calculate the elapsed time and wait if necessary
+                elapsed_time = time.time() - start_time
+                if elapsed_time < min_loading_time:
+                    time.sleep(min_loading_time - elapsed_time)
+
             st.rerun()
         else:
             st.error("Please select a business before proceeding.")
@@ -244,8 +266,6 @@ def track_document():
             else:
                 st.error("Incorrect username or password. Please try again.")
     else:
-        st.success(f"You are already signed in as {st.session_state.username}!")
-
         selected_user = st.session_state.username
 
         st.button('Refresh file')
@@ -309,6 +329,7 @@ def track_document():
                     file.write(uploaded_file.getbuffer())
 
                 do_prepare_data_from_file(os.path.join(directory_path, uploaded_file.name))
+                uploaded_file = None
                 # Notify the user that the file has been saved
                 alert = st.success(f"File saved to {save_path}", icon="✅")
                 time.sleep(2)
@@ -317,11 +338,19 @@ def track_document():
 
 page_names_to_funcs = {
     "Chatbot": chat,
-    "Document Tracker": track_document,
-    "Select Business": select_business
+    "Select Business": select_business,
+    "Document Tracker": track_document
 }
+
+default_funcs = {
+    "Select Business": select_business,
+    "Document Tracker": track_document
+}
+
 if "selected_business" in st.session_state:
     demo_name = st.sidebar.selectbox("Select a page", page_names_to_funcs.keys())
     page_names_to_funcs[demo_name]()
+
 else:
-    select_business()
+    demo_name = st.sidebar.selectbox("Select a page", default_funcs.keys())
+    page_names_to_funcs[demo_name]()
