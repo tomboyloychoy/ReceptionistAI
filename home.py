@@ -2,6 +2,8 @@ import os
 import time
 from io import StringIO
 
+from sqlalchemy.dialects.mysql import pymysql
+from sqlalchemy.exc import SQLAlchemyError
 from streamlit_js_eval import streamlit_js_eval
 import streamlit as st
 import logging
@@ -12,11 +14,11 @@ from llama_index.core import SimpleDirectoryReader, Settings
 from llama_index.core import VectorStoreIndex, StorageContext
 from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.tidbvector import TiDBVectorStore
-from sqlalchemy import URL
+from sqlalchemy import URL, create_engine
 import mysql.connector
 from mysql.connector import MySQLConnection
 from mysql.connector.cursor import MySQLCursor
-
+from sqlalchemy import create_engine, text
 
 # logging
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
@@ -24,7 +26,6 @@ logger = logging.getLogger()
 
 # openai 
 openai.api_key = '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'
-
 
 # connect to TiDB Vector Store
 tidb_connection_url = URL(
@@ -48,6 +49,7 @@ storage_context = StorageContext.from_defaults(vector_store=tidbvec)
 query_engine = tidb_vec_index.as_query_engine(streaming=True)
 logger.info("Connect to TiDB Vector Store successfully")
 
+
 # Connect to TiDB MySQL
 def get_connection(autocommit: bool = True) -> MySQLConnection:
     db_conf = {
@@ -67,6 +69,7 @@ def get_connection(autocommit: bool = True) -> MySQLConnection:
         db_conf["ssl_ca"] = "isrgrootx1.pem"
     return mysql.connector.connect(**db_conf)
 
+
 def run_mysql_query(query: str):
     result = None
     with get_connection(autocommit=True) as conn:
@@ -76,6 +79,7 @@ def run_mysql_query(query: str):
             cur.close()
         conn.close()
     return result
+
 
 def run_mysql_query_tolist(query: str):
     result = None
@@ -90,13 +94,8 @@ def run_mysql_query_tolist(query: str):
     return result
 
 
-
-st.session_state.chat_system_message = 'You are an AI assitant that help user answer question' # default
-st.session_state.search_system_message  = 'system message' # default
-
-
-
-
+st.session_state.chat_system_message = 'You are an AI assitant that help user answer question'  # default
+st.session_state.search_system_message = 'system message'  # default
 
 
 # Chat interface
@@ -108,35 +107,54 @@ def do_prepare_data():
     logger.info("Data preparation complete")
 
 
-BUSINESS_NAME_LIST = [] # to be displayed in selection list
+BUSINESS_NAME_LIST = []  # to be displayed in selection list
 BUSINESS_NAME_LIST = run_mysql_query_tolist(query="SELECT DISTINCT BUSINESS_NAME FROM BUSINESS;")
+
+
 # Get the list of Business Code
 def select_business():
     st.title("Welcome to Our Receptionist AI Chatbot Service")
     st.write("Please select a business you would like to chat with:")
 
-    selected_business = st.selectbox("Choose a business:", BUSINESS_NAME_LIST)
+    # Check if "selected_business" exists in the session state
+    if "selected_business" in st.session_state:
+        del st.session_state["selected_business"]
+        st.rerun()
 
+    selected_business = st.selectbox("Choose a business:", BUSINESS_NAME_LIST)
 
     if st.button("Proceed to Chat"):
         if selected_business:
-            # Save the selected business to session state
-            st.session_state.selected_business = selected_business
 
-            # find selected business code
-            st.session_state.selected_business_id = run_mysql_query(f"SELECT DISTINCT BUSINESS_ID FROM BUSINESS WHERE BUSINESS_NAME = '{st.session_state.selected_business}';")
-            st.session_state.chat_system_message = run_mysql_query(f"select distinct chat_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
-            st.session_state.search_system_message = run_mysql_query(f"select distinct search_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
-            
+            min_loading_time = 2  # Minimum time to show loading message in seconds
+            start_time = time.time()
+            with st.spinner('Loading, please wait...'):
+                st.session_state.selected_business = None
+                # Save the selected business to session state
+                st.session_state.selected_business = selected_business
+
+                # find selected business code
+                st.session_state.selected_business_id = run_mysql_query(
+                    f"SELECT DISTINCT BUSINESS_ID FROM BUSINESS WHERE BUSINESS_NAME = '{st.session_state.selected_business}';")
+                st.session_state.chat_system_message = run_mysql_query(
+                    f"select distinct chat_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
+                st.session_state.search_system_message = run_mysql_query(
+                    f"select distinct search_system_prompt from business where business_id = '{st.session_state.selected_business_id}';")
+
+                # Calculate the elapsed time and wait if necessary
+                elapsed_time = time.time() - start_time
+                if elapsed_time < min_loading_time:
+                    time.sleep(min_loading_time - elapsed_time)
+
             st.rerun()
         else:
             st.error("Please select a business before proceeding.")
-    
-def chat():
 
+
+def chat():
     st.title(f"Welcome to {st.session_state.selected_business}")
 
-        # Initialize messages if not already initialized
+    # Initialize messages if not already initialized
 
     if "messages" not in st.session_state.keys():  # Initialize the chat messages history
         st.session_state.messages = [
@@ -145,7 +163,6 @@ def chat():
                 "content": "Hello there! How can I help you today?",
             }
         ]
-
 
     # @st.cache_resource(show_spinner=False)
     # def load_data():
@@ -160,8 +177,7 @@ def chat():
     #     index = VectorStoreIndex.from_documents(docs)
     #     return index
 
-
-    #index = load_data()
+    # index = load_data()
 
     if "chat_engine" not in st.session_state.keys():  # Initialize the chat engine
         st.session_state.chat_engine = tidb_vec_index.as_chat_engine(
@@ -191,6 +207,7 @@ def chat():
             # Add response to message history
             st.session_state.messages.append(message)
 
+
 # Upload document
 def track_document():
     st.title("Document tracker")
@@ -215,8 +232,6 @@ def track_document():
             else:
                 st.error("Incorrect username or password. Please try again.")
     else:
-        st.success(f"You are already signed in as {st.session_state.username}!")
-
         selected_user = st.session_state.username
 
         st.button('Refresh file')
@@ -266,7 +281,6 @@ def track_document():
                 unsafe_allow_html=True
             )
 
-
             uploaded_file = st.file_uploader("Choose a file")
 
             if uploaded_file is not None:
@@ -285,11 +299,19 @@ def track_document():
 
 page_names_to_funcs = {
     "Chatbot": chat,
-    "Document Tracker": track_document,
-    "Select Business": select_business
+    "Select Business": select_business,
+    "Document Tracker": track_document
 }
+
+default_funcs = {
+    "Select Business": select_business,
+    "Document Tracker": track_document
+}
+
 if "selected_business" in st.session_state:
     demo_name = st.sidebar.selectbox("Select a page", page_names_to_funcs.keys())
     page_names_to_funcs[demo_name]()
+
 else:
-    select_business()
+    demo_name = st.sidebar.selectbox("Select a page", default_funcs.keys())
+    page_names_to_funcs[demo_name]()
