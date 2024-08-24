@@ -16,6 +16,8 @@ from sqlalchemy import URL
 import mysql.connector
 from mysql.connector import MySQLConnection
 from mysql.connector.cursor import MySQLCursor
+from tidb_vector.integrations import TiDBVectorClient
+from load_data import do_prepare_data_from_file
 
 
 # logging
@@ -67,6 +69,8 @@ def get_connection(autocommit: bool = True) -> MySQLConnection:
         db_conf["ssl_ca"] = "isrgrootx1.pem"
     return mysql.connector.connect(**db_conf)
 
+
+
 def run_mysql_query(query: str):
     result = None
     with get_connection(autocommit=True) as conn:
@@ -96,16 +100,12 @@ st.session_state.search_system_message  = 'system message' # default
 
 
 
+def delete_index_by_name(file_name): 
+    print("delete-----------------------------------------------------------------------------------------------------------------", file_name)
+    query = f"delete FROM DATA WHERE meta LIKE '%{file_name}%';"
+    run_mysql_query_tolist(query)
 
 
-
-# Chat interface
-def do_prepare_data():
-    logger.info("Preparing the data for the application")
-    reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
-    documents = reader.load_data()
-    tidb_vec_index.from_documents(documents, storage_context=storage_context, show_progress=True)
-    logger.info("Data preparation complete")
 
 
 BUSINESS_NAME_LIST = [] # to be displayed in selection list
@@ -140,6 +140,9 @@ def chat():
 
     if "messages" not in st.session_state.keys():  # Initialize the chat messages history
         st.session_state.messages = [
+            {"role": "system", "content": st.session_state.chat_system_message}
+        ]
+        st.session_state.messages = [
             {
                 "role": "assistant",
                 "content": "Hello there! How can I help you today?",
@@ -147,28 +150,42 @@ def chat():
         ]
 
 
-    # @st.cache_resource(show_spinner=False)
-    # def load_data():
-    #     reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
-    #     docs = reader.load_data()
-    #     Settings.llm = OpenAI(
-    #         model="gpt-4o",
-    #         temperature=1.2,
-    #         system_prompt=st.session_state.search_system_message
-    #         ,
-    #     )
-    #     index = VectorStoreIndex.from_documents(docs)
-    #     return index
+    @st.cache_resource(show_spinner=False)
+    def load_data():
+        reader = SimpleDirectoryReader(input_dir="./data", recursive=True)
+        docs = reader.load_data()
+        Settings.llm = OpenAI(
+            model="gpt-4o",
+            temperature=1.2,
+            system_prompt=st.session_state.search_system_message
+            ,
+        )
+        index = VectorStoreIndex.from_documents(docs)
+        return index
 
 
-    #index = load_data()
+    # index = tidb_vec_index
 
     if "chat_engine" not in st.session_state.keys():  # Initialize the chat engine
         st.session_state.chat_engine = tidb_vec_index.as_chat_engine(
             chat_mode="condense_plus_context", verbose=True, streaming=True
         )
 
+        # code for using filter - answers are correct, but not as good as expected
+        # st.session_state.chat_engine = tidb_vec_index.as_query_engine(
+        #     pre_filters={
+        #         "filters": [
+        #             {
+        #                 "key": "business_id",
+        #                 "value": st.session_state.selected_business_id,
+        #                 "operator": "=="
+        #             }
+        #         ]
+        #     }, chat_mode="condense_plus_context", verbose=True, streaming=True
+        #     )
+
     if "messages" not in st.session_state:
+        print("Assign system message")
         st.session_state.messages = [
             {"role": "system", "content": st.session_state.chat_system_message}
         ]
@@ -182,6 +199,18 @@ def chat():
         with st.chat_message(message["role"]):
             st.write(message["content"])
 
+    # code for using filter - answers are correct, but not as good as expected
+    # # If last message is not from assistant, generate a new response
+    # if st.session_state.messages[-1]["role"] != "assistant":
+    #     with st.chat_message("assistant"):
+    #         response_stream = st.session_state.chat_engine.query(prompt)
+    #         print(response_stream.response_gen)
+    #         # st.write_stream(response_stream.response_gen)
+    #         st.write_stream(response_stream.response_gen)
+    #         message = {"role": "assistant", "content": response_stream}
+    #         # Add response to message history
+    #         st.session_state.messages.append(message)
+    
     # If last message is not from assistant, generate a new response
     if st.session_state.messages[-1]["role"] != "assistant":
         with st.chat_message("assistant"):
@@ -243,9 +272,11 @@ def track_document():
                         remove_button = st.button(f"Remove {file}", key=file)
 
                         if remove_button:
+                            # remove the file from TiDB
+                            delete_index_by_name(file)
                             # Remove the file from the directory
                             file_path = os.path.join(directory_path, file)
-                            os.remove(file_path)
+                            os.remove(file_path)  
                             st.rerun()  # Re-run the app to hide the sign-in box
 
             else:
@@ -277,6 +308,7 @@ def track_document():
                 with open(save_path, "wb") as file:
                     file.write(uploaded_file.getbuffer())
 
+                do_prepare_data_from_file(os.path.join(directory_path, uploaded_file.name))
                 # Notify the user that the file has been saved
                 alert = st.success(f"File saved to {save_path}", icon="✅")
                 time.sleep(2)
