@@ -1,17 +1,14 @@
-# 🦙📚 LlamaIndex - Chat with the Streamlit docs
+# Business Assistants
 
-Build a chatbot powered by LlamaIndex that augments GPT 3.5 with the contents of the Streamlit docs (or your own data).
+A chatbot that serves as a front desk assistant for a small business environment
 
 ## Overview of the App
 
-<img src="app.png" width="75%">
+- Takes user queries via Streamlit's `st.chat_input` and displays both user queries and model responses with `st.chat_message` to create a meaningful conversation between the user and the business representative.
+- Allow business to upload their data which will improve the correctness and customized to each business
+- Uses `LlamaIndex` to load and index data and create a chat engine that will retrieve context from `TiDB VectorStore`
 
-- Takes user queries via Streamlit's `st.chat_input` and displays both user queries and model responses with `st.chat_message`
-- Uses LlamaIndex to load and index data and create a chat engine that will retrieve context from that data to respond to each user query
-
-## Demo App
-
-[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://llamaindex-chat-with-docs.streamlit.app/)
+#### Testing Instruction ####
 
 ## Get an OpenAI API key
 
@@ -27,6 +24,29 @@ Alternatively, you can use [Streamlit Community Cloud's secrets management featu
 > [!CAUTION]
 > Don't commit your secrets file to your GitHub repository. The `.gitignore` file in this repo includes `.streamlit/secrets.toml` and `secrets.toml`. 
 
+## for this hackathon, we are not sure if we should provide open ai and other key so we just add it in the code
 ## Try out the app
 
-Once the app is loaded, enter your question about the Streamlit library and wait for a response.
+# Test Account:
+
+# Start the app
+1. Create virtual environment
+py -m venv venv
+2. Activate virtual environment
+venv\Scripts\activate
+3. Install requirements.txt
+pip install -r requirements.txt
+4. Run the app
+steamlit run home.py
+5. Test with data
+
+5.1> Upload data
+You will act as a business owner (currently hard code to Ciny Nail and Spa) to add data into the chatbot. 
+- On the left hand side, choose "Document Tracker" in the drop down. 
+- Sign in as the business owner:
+        username: username1
+        password: password
+- Upload the data by drag the file into the "Upload File", or select "Choose a File".
+  The test documents are in the folder "test_data".
+From here, you can choose to chat with the document, or remove the document to test the remove feature.
+
